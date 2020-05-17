@@ -1,0 +1,11 @@
+@import '~bootstrap/scss/bootstrap';
+
+[badgeeditable] {
+    .badge {
+        margin-right: $badge-padding-x;
+
+        &.badge-empty:not(.badge-active) {
+            margin-right: (-2 * $badge-padding-x);
+        }
+    }
+}
