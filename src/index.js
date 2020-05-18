@@ -3,6 +3,22 @@ import './index.scss';
 import { version } from '../package.json';
 import onload from 'onload-function-stack';
 
+const SNAP = (function(body){
+    const [front, back] = [makeChild('.'), makeChild()];
+    const div = document.createElement('div');
+    new BadgeEditable(div);
+    div.appendChild(front);
+    div.appendChild(back);
+    const ranges = Array(window.getSelection().rangeCount).fill()
+        .map((_, i) => window.getSelection().getRangeAt(i));
+    body.appendChild(div);
+    window.getSelection().collapse(back, 0);
+    const snap = window.getSelection().containsNode(front, true);
+    body.removeChild(div);
+    ranges.forEach(r => window.getSelection().addRange(r))
+    return snap;
+})(document.body);
+
 function makeChild(content) {
     const child = document.createElement('span');
     child.classList.add('badge', 'badge-empty');
@@ -66,6 +82,9 @@ function BadgeEditable(element) {
         node.classList.remove('badge-empty');
         node.insertAdjacentElement('beforebegin', before);
         node.insertAdjacentElement('afterend', after);
+        if (SNAP && after === node.parentElement.lastElementChild) {
+            node.insertAdjacentElement('afterend', makeChild());
+        }
         return after;
     }
 
