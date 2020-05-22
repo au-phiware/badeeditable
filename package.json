@@ -5,8 +5,10 @@
   "main": "dist/badgeeditable.js",
   "module": "src/index.mjs",
   "scripts": {
-    "build": "rollup --config",
-    "watch": "rollup --watch --config",
+    "sass": "sass src/index.scss dist/badgeeditable.css",
+    "rollup": "rollup --config",
+    "build": "npm run sass; npm run rollup",
+    "watch": "sass --watch src/index.scss dist/badgeeditable.css & rollup --watch --config",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -25,15 +27,11 @@
   },
   "homepage": "https://github.com/au-phiware/badgeeditable#readme",
   "devDependencies": {
-    "@babel/core": "^7.9.6",
     "@rollup/plugin-commonjs": "^11.1.0",
     "@rollup/plugin-json": "^4.0.3",
     "@rollup/plugin-node-resolve": "^7.1.3",
-    "bootstrap": "^4.5.0",
-    "onload-function-stack": "^1.2.0",
     "rollup": "^2.10.2",
-    "rollup-plugin-babel": "^4.4.0",
-    "rollup-plugin-sass": "^1.2.2",
-    "rollup-plugin-serve": "^1.0.1"
+    "rollup-plugin-serve": "^1.0.1",
+    "sass": "^1.26.5"
   }
 }

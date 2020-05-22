@@ -1,8 +1,4 @@
-import './index.scss';
-
 import { version } from '../package.json';
-import onload from 'onload-function-stack';
-
 const SNAP = (function(body){
     const [front, back] = [makeChild('.'), makeChild()];
     const div = document.createElement('div');
@@ -129,10 +125,10 @@ function BadgeEditable(element) {
 
 BadgeEditable.version = version;
 
-onload.add(() => {
+BadgeEditable.onLoad = () => {
     document.querySelectorAll('[badgeeditable]').forEach(element => {
         new BadgeEditable(element);
     });
-})
+};
 
 export default BadgeEditable;
