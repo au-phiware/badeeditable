@@ -39,8 +39,20 @@ function getBadgeElement(node) {
     return getBadgeElement(node.parentElement);
 }
 
-function BadgeEditable(element) {
+function BadgeEditable(element, {validLabel, parser} = {}) {
     let activeBadge = null;
+
+    if (!parser) {
+        parser = {
+            parse(text) {
+                return text.split(',').map(s => s.trim() ? s.trim() : undefined)
+            }
+        };
+    }
+
+    if (!validLabel) {
+        validLabel = 'primary';
+    }
 
     element.contentEditable = 'true';
 
@@ -74,7 +86,10 @@ function BadgeEditable(element) {
             return null;
         }
         const [before, after] = [makeChild(), makeChild()];
-        node.classList.add('badge-primary');
+        try {
+            parser.parse(node.textContent);
+            node.classList.add(`badge-${validLabel}`);
+        } catch {}
         node.classList.remove('badge-empty');
         node.insertAdjacentElement('beforebegin', before);
         node.insertAdjacentElement('afterend', after);
@@ -97,21 +112,62 @@ function BadgeEditable(element) {
         }
     });
     element.addEventListener('keydown', function keydown(e) {
-        if (e.key === ',') {
-            e.preventDefault();
-            e.stopPropagation();
+        if (e.key.length !== 1) {
+            return;
+        }
 
-            const selection = window.getSelection();
-            const badge = getBadgeElement(selection.anchorNode);
+        const selection = window.getSelection();
+        let badge = getBadgeElement(selection.anchorNode);
 
-            if (!badge) {
-                return;
+        if (!badge) {
+            return;
+        }
+
+        const scratch = badge.cloneNode(true);
+        const i = Array.from(badge.childNodes).findIndex(n => n===selection.anchorNode);
+        const anchorNode = scratch.childNodes[i] || scratch;
+        // FIXME: This assumes selection.focusNode===selection.anchorNode
+        const textContent = Array.from(anchorNode.textContent);
+        textContent.splice(
+            selection.anchorOffset,
+            selection.focusOffset - selection.anchorOffset,
+            e.key
+        );
+        anchorNode.textContent = textContent.join('');
+        try {
+            const allItems = parser.parse(scratch.textContent);
+            const items = allItems.filter((d, i) => d !== undefined || i === allItems.length - 1);
+            badge.classList.remove('badge-invalid');
+
+            if (items.length > 1) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                // FIXME: This assumes items.length===2
+                let collapse = true;
+                if (items[1] !== undefined) {
+                    // FIXME: This assumes badge contains one text node
+                    const offset = items[0].location && items[0].location.end && items[0].location.end.offset || selection.focusOffset;
+                    const newText = badge.firstChild.splitText(offset);
+                    const newChild = deactivateBadge(badge);
+                    activateBadge(newChild, collapse);
+                    collapse = false;
+                    // newChild.firstChild is always <br>
+                    newChild.insertBefore(newText, newChild.firstChild);
+                    badge = newChild;
+                }
+                const newChild = deactivateBadge(badge);
+                activateBadge(newChild, collapse);
+
+                return false;
+            } else if (items.length !== allItems.length) {
+                e.preventDefault();
+                e.stopPropagation();
             }
-
-            const newChild = deactivateBadge(badge);
-            activateBadge(newChild, true);
-
-            return false;
+        } catch {
+            badge.classList.remove(`badge-${validLabel}`);
+            badge.classList.add('badge-invalid');
+            // TODO: store error message someplace
         }
     });
     element.addEventListener('keyup', function keyup(e) {
