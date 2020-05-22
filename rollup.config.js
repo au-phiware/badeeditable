@@ -4,15 +4,17 @@ import json from '@rollup/plugin-json';
 import resolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 
+const isDevelopment = process.env.NODE_ENV === 'development';
+
 export default {
-    input: 'src/index.js',
+    input: 'src/index.mjs',
     output: {
-        name: 'badgeeditable',
+        name: 'BadgeEditable',
         file: 'dist/badgeeditable.js',
         format: 'iife',
     },
     plugins: [
-        serve({
+        isDevelopment && serve({
             contentBase: ['dist', 'static'],
         }),
         sass({

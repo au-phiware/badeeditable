@@ -2,7 +2,8 @@
   "name": "badgeeditable",
   "version": "0.0.1",
   "description": "Natural language input field for sytlable blocks",
-  "main": "src/index.js",
+  "main": "dist/badgeeditable.js",
+  "module": "src/index.mjs",
   "scripts": {
     "build": "rollup --config",
     "watch": "rollup --watch --config",
