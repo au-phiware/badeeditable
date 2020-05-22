@@ -56,8 +56,8 @@ function BadgeEditable(element, {validLabel, parser} = {}) {
         if (activeBadge) {
             deactivateBadge(activeBadge);
         }
-        if (collapse) {
-            window.getSelection().collapse(node, 0);
+        if (collapse !== undefined) {
+            window.getSelection().collapse(node, collapse);
         }
         node.classList.add('badge-active');
         activeBadge = node;
@@ -99,12 +99,15 @@ function BadgeEditable(element, {validLabel, parser} = {}) {
         const selection = window.getSelection();
         const anchorElement = selection.anchorNode;
         if (anchorElement !== getBadgeElement(anchorElement)) {
+            // TODO: place cursor at the end of the last invalid badge,
+            // otherwise create a new badge
             if (element.childElementCount === 0) {
                 element.appendChild(makeChild());
             }
-            activateBadge(element.lastElementChild, true);
+            activateBadge(element.lastElementChild, 0);
         } else {
-            activateBadge(anchorElement);
+            // anchorNode is not always correct at this point
+            setTimeout(() => activateBadge(getBadgeElement(selection.anchorNode)), 2);
         }
     });
     element.addEventListener('keydown', function keydown(e) {
@@ -140,14 +143,14 @@ function BadgeEditable(element, {validLabel, parser} = {}) {
                 e.stopPropagation();
 
                 // FIXME: This assumes items.length===2
-                let collapse = true;
+                let collapse = 0;
                 if (items[1] !== undefined) {
                     // FIXME: This assumes badge contains one text node
                     const offset = items[0].location && items[0].location.end && items[0].location.end.offset || selection.focusOffset;
                     const newText = badge.firstChild.splitText(offset);
                     const newChild = deactivateBadge(badge);
                     activateBadge(newChild, collapse);
-                    collapse = false;
+                    collapse = undefined;
                     // newChild.firstChild is always <br>
                     newChild.insertBefore(newText, newChild.firstChild);
                     badge = newChild;
