@@ -1,19 +1,4 @@
 import { version } from '../package.json';
-const SNAP = (function(body){
-    const [front, back] = [makeChild('.'), makeChild()];
-    const div = document.createElement('div');
-    new BadgeEditable(div);
-    div.appendChild(front);
-    div.appendChild(back);
-    const ranges = Array(window.getSelection().rangeCount).fill()
-        .map((_, i) => window.getSelection().getRangeAt(i));
-    body.appendChild(div);
-    window.getSelection().collapse(back, 0);
-    const snap = window.getSelection().containsNode(front, true);
-    body.removeChild(div);
-    ranges.forEach(r => window.getSelection().addRange(r))
-    return snap;
-})(document.body);
 
 function makeChild(content) {
     const child = document.createElement('span');
@@ -37,6 +22,14 @@ function getBadgeElement(node) {
         return node;
     }
     return getBadgeElement(node.parentElement);
+}
+
+function hasEmptyBadgeAfter(node) {
+    return node.nextElementSibling && node.nextElementSibling.classList.contains('badge-empty');
+}
+
+function hasEmptyBadgeBefore(node) {
+    return node.previousElementSibling && node.previousElementSibling.classList.contains('badge-empty');
 }
 
 function BadgeEditable(element, {validLabel, parser} = {}) {
@@ -75,26 +68,29 @@ function BadgeEditable(element, {validLabel, parser} = {}) {
         if (node === activeBadge) {
             activeBadge = null;
         }
-        if (node.innerText.trim() !== '') {
+        if (node.textContent.trim() !== '') {
             return enableBadge(node);
         }
         return null;
     }
 
     function enableBadge(node) {
-        if (node.classList.contains('badge-primary')) {
-            return null;
-        }
-        const [before, after] = [makeChild(), makeChild()];
+        let [before, after] = [makeChild(), makeChild()];
         try {
             parser.parse(node.textContent);
             node.classList.add(`badge-${validLabel}`);
         } catch {}
         node.classList.remove('badge-empty');
-        node.insertAdjacentElement('beforebegin', before);
-        node.insertAdjacentElement('afterend', after);
-        if (SNAP && after === node.parentElement.lastElementChild) {
-            node.insertAdjacentElement('afterend', makeChild());
+        if (!hasEmptyBadgeBefore(node)) {
+            node.insertAdjacentElement('beforebegin', before);
+        }
+        if (!hasEmptyBadgeAfter(node)) {
+            node.insertAdjacentElement('afterend', after);
+        } else {
+            after = node.nextElementSibling;
+        }
+        if (!node.lastElementChild) {
+            node.appendChild(document.createElement('br'));
         }
         return after;
     }
