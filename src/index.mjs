@@ -1,19 +1,5 @@
 import { version } from '../package.json';
 
-function makeChild(content) {
-    const child = document.createElement('span');
-    child.classList.add('badge', 'badge-empty');
-    if (content) {
-        if ('string' === typeof content) {
-            content = document.createTextNode(content);
-        }
-        child.appendChild(content);
-    }
-    content = document.createElement('br');
-    child.appendChild(content);
-    return child;
-}
-
 function getBadgeElement(node) {
     if (!node) {
         return;
@@ -32,8 +18,11 @@ function hasEmptyBadgeBefore(node) {
     return node.previousElementSibling && node.previousElementSibling.classList.contains('badge-empty');
 }
 
-function BadgeEditable(element, {validLabel, parser} = {}) {
+function BadgeEditable(element, {validLabel, parser, onChange} = {}) {
     let activeBadge = null;
+    let lastBadgeKey = 0;
+    const badgeMap = new Map();
+    let emit = null;
 
     if (!parser) {
         parser = {
@@ -47,11 +36,64 @@ function BadgeEditable(element, {validLabel, parser} = {}) {
         validLabel = 'primary';
     }
 
+    if (onChange) {
+        emit = onChange;
+    }
+
     element.contentEditable = 'true';
+
+    this.getBadges = function() {
+        const data = [];
+        for (let i = 0; i < element.childElementCount; i++) {
+            const badgeKey = element.children[i].dataset.badgeKey;
+            if (badgeMap.has(badgeKey)) {
+                data.push(badgeMap.get(badgeKey));
+            }
+        }
+        return data;
+    };
+
+    function makeChild(content) {
+        const child = document.createElement('span');
+        child.classList.add('badge', 'badge-empty');
+        child.dataset.badgeKey = ++lastBadgeKey;
+        if (content) {
+            if ('string' === typeof content) {
+                content = document.createTextNode(content);
+            }
+            child.appendChild(content);
+        }
+        content = document.createElement('br');
+        child.appendChild(content);
+        return child;
+    }
+
+    function updateBadge(node, data) {
+        const badgeKey = node.dataset.badgeKey;
+        if (data !== undefined) {
+            let oldData = null;
+            let type = 'add';
+            if (badgeMap.has(badgeKey)) {
+                oldData = badgeMap.get(badgeKey);
+                type = 'change';
+            }
+            badgeMap.set(badgeKey, data);
+            if (emit) emit(type, node, oldData, data);
+            node.classList.add(`badge-${validLabel}`);
+        } else {
+            node.classList.remove(`badge-${validLabel}`);
+            if (badgeMap.has(badgeKey)) {
+                const oldData = badgeMap.get(badgeKey);
+                badgeMap.delete(badgeKey);
+                if (emit) emit('delete', node, oldData);
+            }
+            node.classList.add('badge-invalid');
+        }
+    }
 
     function activateBadge(node, collapse) {
         if (node === activeBadge) {
-            return
+            return false;
         }
         if (activeBadge) {
             deactivateBadge(activeBadge);
@@ -61,26 +103,61 @@ function BadgeEditable(element, {validLabel, parser} = {}) {
         }
         node.classList.add('badge-active');
         activeBadge = node;
+        return true;
     }
 
-    function deactivateBadge(node) {
+    function deactivateBadge(node, data) {
         node.classList.remove('badge-active');
         if (node === activeBadge) {
             activeBadge = null;
         }
-        if (node.textContent.trim() !== '') {
-            return enableBadge(node);
+        if (validateBadge(node, data)) {
+            return enableBadge(node, data);
         }
         return null;
     }
 
-    function enableBadge(node) {
+    function validateBadge(node, data) {
+        if (data === undefined) {
+            const badgeKey = node.dataset.badgeKey;
+            if (badgeMap.has(badgeKey)) {
+                data = badgeMap.get(badgeKey);
+            }
+            const textContent = node.textContent;
+            if (textContent.trim() === '') {
+                node.classList.add('badge-empty');
+                if (data !== undefined) {
+                    updateBadge(node);
+                }
+            } else {
+                node.classList.remove('badge-empty');
+                if (data === undefined || data.rawText !== textContent) {
+                    try {
+                        let items = parser.parse(textContent);
+                        if (items.length !== 1) {
+                            throw new Error('Illegal argument: node does not contain a single item');
+                        }
+                        data = items[0];
+                        data.rawText = textContent;
+                        updateBadge(node, data);
+                        return true;
+                    } catch {
+                        if (data !== undefined) {
+                            updateBadge(node);
+                        }
+                    }
+                }
+            }
+            return false;
+        } else if (data.rawText.trim() === '') {
+            node.classList.add('badge-empty');
+            return false;
+        }
+        return true;
+    }
+
+    function enableBadge(node, data) {
         let [before, after] = [makeChild(), makeChild()];
-        try {
-            parser.parse(node.textContent);
-            node.classList.add(`badge-${validLabel}`);
-        } catch {}
-        node.classList.remove('badge-empty');
         if (!hasEmptyBadgeBefore(node)) {
             node.insertAdjacentElement('beforebegin', before);
         }
@@ -89,6 +166,7 @@ function BadgeEditable(element, {validLabel, parser} = {}) {
         } else {
             after = node.nextElementSibling;
         }
+        // TODO: Can this be any element or should we check for tagName==='BR'?
         if (!node.lastElementChild) {
             node.appendChild(document.createElement('br'));
         }
@@ -144,18 +222,25 @@ function BadgeEditable(element, {validLabel, parser} = {}) {
 
                 // FIXME: This assumes items.length===2
                 let collapse = 0;
+                let data = items[0];
+                data.rawText = badge.textContent;
                 if (items[1] !== undefined) {
                     // FIXME: This assumes badge contains one text node
                     const offset = items[0].location && items[0].location.end && items[0].location.end.offset || selection.focusOffset;
-                    const newText = badge.firstChild.splitText(offset);
-                    const newChild = deactivateBadge(badge);
+                    const newText = badge.removeChild(badge.firstChild.splitText(offset));
+                    data.rawText = badge.textContent;
+                    const newChild = deactivateBadge(badge, data);
+                    updateBadge(badge, data);
                     activateBadge(newChild, collapse);
                     collapse = undefined;
                     // newChild.firstChild is always <br>
                     newChild.insertBefore(newText, newChild.firstChild);
                     badge = newChild;
+                    data = items[1];
+                    data.rawText = badge.textContent;
                 }
-                const newChild = deactivateBadge(badge);
+                const newChild = deactivateBadge(badge, data);
+                updateBadge(badge, data);
                 activateBadge(newChild, collapse);
 
                 return false;
@@ -164,8 +249,7 @@ function BadgeEditable(element, {validLabel, parser} = {}) {
                 e.stopPropagation();
             }
         } catch {
-            badge.classList.remove(`badge-${validLabel}`);
-            badge.classList.add('badge-invalid');
+            updateBadge(badge);
             // TODO: store error message someplace
         }
     });
@@ -174,6 +258,14 @@ function BadgeEditable(element, {validLabel, parser} = {}) {
         const badge = getBadgeElement(selection.anchorNode);
         if (badge) {
             activateBadge(badge);
+            if (validateBadge(badge)) {
+                enableBadge(badge);
+            }
+        }
+    });
+    element.addEventListener('blur', function keyup(e) {
+        if (activeBadge) {
+            deactivateBadge(activeBadge);
         }
     });
 }
