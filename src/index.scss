@@ -3,6 +3,7 @@ $input-padding-x: .75rem !default;
 
 [badgeeditable] {
     padding-left: $input-padding-x - $badge-padding-x;
+    height: auto;
 
     .badge {
         margin-right: $badge-padding-x;

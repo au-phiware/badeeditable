@@ -42,26 +42,85 @@ function BadgeEditable(element, {validLabel, parser, onChange} = {}) {
 
     element.contentEditable = 'true';
 
-    this.getBadges = function() {
-        const data = [];
-        for (let i = 0; i < element.childElementCount; i++) {
-            const badgeKey = element.children[i].dataset.badgeKey;
-            if (badgeMap.has(badgeKey)) {
-                data.push(badgeMap.get(badgeKey));
+    Object.defineProperties(this, {
+        length: {
+            get() {
+                return badgeMap.length;
+            },
+        },
+
+        isActive: {
+            get() {
+                return element.ownerDocument.activeElement === element;
+            },
+        },
+
+        forEach: {
+            value(callback) {
+                for (let i = 0; i < element.childElementCount; i++) {
+                    const child = element.children[i];
+                    const badgeKey = child.dataset.badgeKey;
+                    if (badgeMap.has(badgeKey)) {
+                        callback(badgeMap.get(badgeKey), child);
+                    }
+                }
             }
-        }
-        return data;
-    };
+        },
+
+        value: {
+            get() {
+                const data = [];
+                this.forEach((badge) => {
+                    data.push(badge);
+                });
+                return data;
+            },
+
+            set(value) {
+                const changes = [];
+                this.forEach((previousValue, node) => {
+                    changes.push({type: 'delete', node, previousValue});
+                    element.removeChild(node);
+                });
+                badgeMap.clear();
+                for (const node of element.querySelectorAll('.badge-empty')) {
+                    element.removeChild(node);
+                }
+                value.forEach(value => {
+                    const content = 'text' in value ? value.text : value.toString();
+                    const node = makeChild(content)
+                    const badgeKey = node.dataset.badgeKey;
+                    node.classList.add(`badge-${validLabel}`);
+                    element.appendChild(node);
+                    enableBadge(node);
+                    value.rawText = content;
+                    badgeMap.set(badgeKey, value);
+                    changes.push({type: 'add', node, value});
+                });
+                emit(changes);
+            },
+        },
+
+        textContent: {
+            set(textContent) {
+                const allItems = parser.parse(textContent);
+                const items = allItems.filter((d, i) => d !== undefined);
+                this.value = items;
+            },
+        },
+    });
 
     function makeChild(content) {
         const child = document.createElement('span');
-        child.classList.add('badge', 'badge-empty');
         child.dataset.badgeKey = ++lastBadgeKey;
+        child.classList.add('badge');
         if (content) {
             if ('string' === typeof content) {
                 content = document.createTextNode(content);
             }
             child.appendChild(content);
+        } else {
+            child.classList.add('badge-empty');
         }
         content = document.createElement('br');
         child.appendChild(content);
@@ -71,23 +130,30 @@ function BadgeEditable(element, {validLabel, parser, onChange} = {}) {
     function updateBadge(node, data) {
         const badgeKey = node.dataset.badgeKey;
         if (data !== undefined) {
-            let oldData = null;
-            let type = 'add';
+            const e = {
+                type: 'add',
+                node,
+                value: data,
+            };
             if (badgeMap.has(badgeKey)) {
-                oldData = badgeMap.get(badgeKey);
-                type = 'change';
+                e.previousValue = badgeMap.get(badgeKey);
+                e.type = 'change';
             }
             badgeMap.set(badgeKey, data);
-            if (emit) emit(type, node, oldData, data);
             node.classList.add(`badge-${validLabel}`);
+            if (emit) emit([e]);
         } else {
             node.classList.remove(`badge-${validLabel}`);
-            if (badgeMap.has(badgeKey)) {
-                const oldData = badgeMap.get(badgeKey);
-                badgeMap.delete(badgeKey);
-                if (emit) emit('delete', node, oldData);
-            }
             node.classList.add('badge-invalid');
+            if (badgeMap.has(badgeKey)) {
+                const previousValue = badgeMap.get(badgeKey);
+                badgeMap.delete(badgeKey);
+                if (emit) emit([{
+                    type: 'delete',
+                    node,
+                    previousValue,
+                }]);
+            }
         }
     }
 
@@ -156,7 +222,7 @@ function BadgeEditable(element, {validLabel, parser, onChange} = {}) {
         return true;
     }
 
-    function enableBadge(node, data) {
+    function enableBadge(node) {
         let [before, after] = [makeChild(), makeChild()];
         if (!hasEmptyBadgeBefore(node)) {
             node.insertAdjacentElement('beforebegin', before);
