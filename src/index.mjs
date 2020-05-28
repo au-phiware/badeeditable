@@ -107,7 +107,7 @@ function BadgeEditable(
                     const child = element.children[i];
                     const badgeKey = child.dataset.badgeKey;
                     if (badgeMap.has(badgeKey)) {
-                        callback(badgeMap.get(badgeKey).value, child);
+                        callback(badgeMap.get(badgeKey).value, child, badgeKey);
                     }
                 }
             }
@@ -116,8 +116,8 @@ function BadgeEditable(
         value: {
             get() {
                 const data = [];
-                this.forEach((badge) => {
-                    data.push(badge);
+                this.forEach((badge, node, key) => {
+                    data.push(Object.assign({key}, badge));
                 });
                 return data;
             },
