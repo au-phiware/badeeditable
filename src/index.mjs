@@ -76,6 +76,7 @@ function BadgeEditable(
     //     value: <any value that was emitted by the parser>,
     //     textContent: String<last known textContent of the badge node>,
     //     rawText: String<text passed to the parser>
+    //     sentinal: Function|HtmlElement
     //   }
     const badgeMap = new Map();
     // emit will be called when a badge value changes, added or removed
@@ -135,10 +136,11 @@ function BadgeEditable(
                     const textContent = 'text' in value ? value.text : value.toString();
                     const node = makeChild(textContent)
                     const badgeKey = node.dataset.badgeKey;
+                    const data = {value, textContent};
                     node.classList.add(`badge-${validLabel}`);
                     element.appendChild(node);
-                    badgeMap.set(badgeKey, {value, textContent});
-                    enableBadge(node);
+                    badgeMap.set(badgeKey, data);
+                    enableBadge(node, data);
                     changes.push({type: 'add', node, value});
                 });
                 if (emit) emit(changes);
@@ -169,6 +171,13 @@ function BadgeEditable(
         content = document.createElement('br');
         child.appendChild(content);
         return child;
+    }
+
+    function addSentinal(node, data) {
+        const value = data.value;
+        const sentinal = value.sentinal ? typeof value.sentinal === 'function' ? value.sentinal() : value.sentinal : document.createElement('br');
+        node.appendChild(sentinal);
+        data.sentinal = sentinal;
     }
 
     function updateBadge(node, data) {
@@ -267,7 +276,7 @@ function BadgeEditable(
         return true;
     }
 
-    function enableBadge(node) {
+    function enableBadge(node, data) {
         let [before, after] = [makeChild(), makeChild()];
         if (!hasEmptyBadgeBefore(node)) {
             node.insertAdjacentElement('beforebegin', before);
@@ -277,9 +286,21 @@ function BadgeEditable(
         } else {
             after = node.nextElementSibling;
         }
-        // TODO: Can this be any element or should we check for tagName==='BR'?
-        if (!node.lastElementChild) {
-            node.appendChild(document.createElement('br'));
+        const badgeKey = node.dataset.badgeKey;
+        const lastChild = node.lastElementChild;
+        if (!lastChild) {
+            if (!data) {
+                data = badgeMap.has(badgeKey) ? badgeMap.get(badgeKey) : {value:{}};
+            }
+            addSentinal(node, data);
+        } else if(data || badgeMap.has(badgeKey)) {
+            if (!data) {
+                data = badgeMap.has(badgeKey) ? badgeMap.get(badgeKey) : {value:{}};
+            }
+            if (data.sentinal !== data.value.sentinal) {
+                node.removeChild(lastChild);
+                addSentinal(node, data);
+            }
         }
         return after;
     }
