@@ -33,7 +33,36 @@ function BadgeEditable(
         // commas
         parser = {
             parse(text) {
-                return text.split(',').map(s => s.trim() ? s.trim() : undefined)
+                let values = [];
+                let offset = 0;
+                for (let i = text.indexOf(','); i > 0; i = text.indexOf(',')) {
+                    const trim = text.substring(0, i).trim();
+                    const data = {
+                        location: {
+                            start: {offset},
+                            end: {offset: offset + i},
+                        },
+                    };
+                    if (trim) {
+                        data.text = trim;
+                    }
+                    values.push(data);
+
+                    text = text.substring(i + 1);
+                    offset += i + 1;
+                }
+                const trim = text.trim();
+                const data = {
+                    location: {
+                        start: {offset},
+                        end: {offset: offset + text.length},
+                    },
+                };
+                if (trim) {
+                    data.text = trim;
+                }
+                values.push(data);
+                return values;
             }
         },
     } = {}) {
@@ -46,6 +75,7 @@ function BadgeEditable(
     //   {
     //     value: <any value that was emitted by the parser>,
     //     textContent: String<last known textContent of the badge node>,
+    //     rawText: String<text passed to the parser>
     //   }
     const badgeMap = new Map();
     // emit will be called when a badge value changes, added or removed
@@ -179,7 +209,8 @@ function BadgeEditable(
             deactivateBadge(activeNode);
         }
         if (collapse !== undefined) {
-            window.getSelection().collapse(node, collapse);
+            // FIXME: This assumes there is one text node as the first child
+            window.getSelection().collapse(node.firstChild, collapse);
         }
         node.classList.add('badge-active');
         activeNode = node;
@@ -230,6 +261,8 @@ function BadgeEditable(
         } else if (data.textContent.trim() === '') {
             node.classList.add('badge-empty');
             return false;
+        } else {
+            node.classList.remove('badge-empty');
         }
         return true;
     }
@@ -281,6 +314,7 @@ function BadgeEditable(
         const scratch = badge.cloneNode(true);
         const i = Array.from(badge.childNodes).findIndex(n => n===selection.anchorNode);
         const anchorNode = scratch.childNodes[i] || scratch;
+        const focusOffset = selection.focusOffset;
         // FIXME: This assumes selection.focusNode===selection.anchorNode
         const textContent = Array.from(anchorNode.textContent);
         textContent.splice(
@@ -290,7 +324,8 @@ function BadgeEditable(
         );
         anchorNode.textContent = textContent.join('');
         try {
-            const allItems = parser.parse(scratch.textContent);
+            const text = scratch.textContent;
+            const allItems = parser.parse(text);
             const items = allItems.filter((d, i) => d !== undefined || i === allItems.length - 1);
             badge.classList.remove('badge-invalid');
 
@@ -299,32 +334,70 @@ function BadgeEditable(
                 e.stopPropagation();
 
                 // FIXME: This assumes items.length===2
-                let collapse = 0;
                 let data = {
                     value: items[0],
                     textContent: badge.textContent,
+                    rawText: text,
+                };
+                let activate = () => {
+                    if (activeNode) {
+                        const newChild = deactivateBadge(activeNode, data);
+                        activateBadge(newChild, 0);
+                    }
                 };
                 if (items[1] !== undefined) {
                     // FIXME: This assumes badge contains one text node
-                    const loc = data.value.location;
-                    const offset = loc && loc.end && loc.end.offset || selection.focusOffset;
+                    let loc = data.value.location;
+                    let offset = focusOffset;
+                    if (loc && loc.end && 'offset' in loc.end) {
+                        if (offset <= loc.end.offset) {
+                            const collapse = offset + 1;
+                            const currentBadge = badge;
+                            activate = () => {
+                                deactivateBadge(badge, data);
+                                activateBadge(currentBadge, collapse);
+                            };
+                        }
+                        offset = loc.end.offset;
+                    }
                     const newText = badge.removeChild(badge.firstChild.splitText(offset));
-                    data.textContent = badge.textContent;
-                    const newChild = deactivateBadge(badge, data);
+                    if (data.value.text) {
+                        badge.textContent = data.textContent = data.value.text;
+                    } else {
+                        badge.textContent = data.textContent = text.substring(0, offset);
+                    }
+                    loc = items[1].location;
+                    if (loc && loc.start && 'offset' in loc.start) {
+                        data.rawText = text.substring(0, loc.start.offset);
+                    }
                     updateBadge(badge, data);
-                    activateBadge(newChild, collapse);
-                    collapse = undefined;
-                    // newChild.firstChild is always <br>
+                    const newChild = deactivateBadge(badge, data);
+                    // newChild.firstChild is always the sentinal
                     newChild.insertBefore(newText, newChild.firstChild);
                     badge = newChild;
                     data = {
                         value: items[1],
                         textContent: badge.textContent,
                     };
+                    enableBadge(badge, data);
+                    if (loc && loc.start && 'offset' in loc.start) {
+                        data.rawText = text.substring(loc.start.offset);
+                        if (loc && loc.end && 'offset' in loc.end) {
+                            if (loc.start.offset <= focusOffset && focusOffset <= loc.end.offset) {
+                                const collapse = focusOffset + 1 - loc.start.offset;
+                                const currentBadge = badge;
+                                activate = () => {
+                                    activateBadge(currentBadge, collapse);
+                                };
+                            }
+                        }
+                    }
                 }
-                const newChild = deactivateBadge(badge, data);
+                if (data.value.text) {
+                    badge.textContent = data.textContent = data.value.text;
+                }
                 updateBadge(badge, data);
-                activateBadge(newChild, collapse);
+                activate();
 
                 return false;
             } else if (items.length !== allItems.length) {
