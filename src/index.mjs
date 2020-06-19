@@ -157,7 +157,7 @@ function BadgeEditable(
         },
     });
 
-    function makeChild(content) {
+    function makeChild(content=null) {
         const child = document.createElement('span');
         child.dataset.badgeKey = ++badgeKeySequence;
         child.classList.add('badge');
@@ -181,7 +181,7 @@ function BadgeEditable(
         data.sentinal = sentinal;
     }
 
-    function updateBadge(node, data) {
+    function updateBadge(node, data=undefined) {
         const badgeKey = node.dataset.badgeKey;
         if (data !== undefined) {
             const e = {
@@ -212,7 +212,7 @@ function BadgeEditable(
         }
     }
 
-    function activateBadge(node, collapse) {
+    function activateBadge(node, collapse=undefined) {
         if (node === activeNode) {
             return false;
         }
@@ -228,7 +228,7 @@ function BadgeEditable(
         return true;
     }
 
-    function deactivateBadge(node, data) {
+    function deactivateBadge(node, data=undefined) {
         node.classList.remove('badge-active');
         if (node === activeNode) {
             activeNode = null;
@@ -239,7 +239,7 @@ function BadgeEditable(
         return null;
     }
 
-    function validateBadge(node, data) {
+    function validateBadge(node, data=undefined) {
         if (data === undefined) {
             const badgeKey = node.dataset.badgeKey;
             if (badgeMap.has(badgeKey)) {
@@ -278,7 +278,7 @@ function BadgeEditable(
         return true;
     }
 
-    function enableBadge(node, data) {
+    function enableBadge(node, data=undefined) {
         let [before, after] = [makeChild(), makeChild()];
         if (!hasEmptyBadgeBefore(node)) {
             node.insertAdjacentElement('beforebegin', before);
@@ -307,7 +307,7 @@ function BadgeEditable(
         return after;
     }
 
-    element.addEventListener('focus', function focus(e) {
+    element.addEventListener('focus', function focus() {
         const selection = window.getSelection();
         const anchorElement = selection.anchorNode;
         if (anchorElement !== getBadgeElement(anchorElement)) {
@@ -432,7 +432,7 @@ function BadgeEditable(
             // TODO: store error message someplace
         }
     });
-    element.addEventListener('keyup', function keyup(e) {
+    element.addEventListener('keyup', function keyup() {
         const selection = window.getSelection();
         const badge = getBadgeElement(selection.anchorNode);
         if (badge) {
@@ -442,7 +442,7 @@ function BadgeEditable(
             }
         }
     });
-    element.addEventListener('blur', function keyup(e) {
+    element.addEventListener('blur', function keyup() {
         if (activeNode) {
             deactivateBadge(activeNode);
         }
