@@ -137,6 +137,7 @@ function BadgeEditable(
                     const node = makeChild(textContent)
                     const badgeKey = node.dataset.badgeKey;
                     const data = {value, textContent};
+                    node.classList.remove('badge-invalid');
                     node.classList.add(`badge-${validLabel}`);
                     element.appendChild(node);
                     badgeMap.set(badgeKey, data);
@@ -193,6 +194,7 @@ function BadgeEditable(
                 e.type = 'change';
             }
             badgeMap.set(badgeKey, data);
+            node.classList.remove('badge-invalid');
             node.classList.add(`badge-${validLabel}`);
             if (emit) emit([e]);
         } else {
