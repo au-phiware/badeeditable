@@ -91,7 +91,7 @@ function BadgeEditable(
     Object.defineProperties(this, {
         length: {
             get() {
-                return badgeMap.length;
+                return badgeMap.size;
             },
         },
 
