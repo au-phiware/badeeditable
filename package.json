@@ -5,6 +5,8 @@
   "main": "dist/badgeeditable.js",
   "module": "src/index.mjs",
   "scripts": {
+    "prepare": "npm run build",
+    "postinstall": "test -f dist/badgeeditable.js || npm run build",
     "sass": "sass src/index.scss dist/badgeeditable.css",
     "rollup": "rollup --config",
     "build": "npm run sass; npm run rollup",
