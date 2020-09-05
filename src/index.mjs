@@ -18,146 +18,342 @@ function hasEmptyBadgeBefore(node) {
     return node.previousElementSibling && node.previousElementSibling.classList.contains('badge-empty');
 }
 
+/**
+ * Represents the user defined data associated to a badge within the {@link
+ * BadgeEditable} input control.  These values are emitted by the control's
+ * {@link Parser}.
+ *
+ * @typedef BadgeUserData
+ * @property {String} text - the parsed text of this object
+ * @property {Object} location - the location of the parsed text within the
+ *     source text
+ * @property {Object} location.start - the starting location of the parsed text
+ * @property {Number} location.start.offset - the offset into the source text of
+ *     the starting location
+ * @property {Object} location.end - the ending location of the parsed text
+ *     within the source text
+ * @property {Number} location.end.offset - the offset into the source text of
+ *     the ending location (exclusive)
+ * @property {Node|SentinalGenerator} [sentinal] - a node or generator to be
+ *     used for the badge element's sentinal
+ */
+
+/**
+ * A Parser is responsible for converting the {@link BadgeEditable} input into
+ * an array of [badge data]{@link BadgeUserData} objects.  These objects are
+ * then associated to DOM elements within the {@link BadgeEditable} control.
+ *
+ * @typedef Parser
+ * @function
+ * @param {String} source - text to be parsed into [badge data]{@link
+ *     BadgeUserData} objects
+ * @returns {Array.<BadgeUserData>} An array of [badge data]{@link BadgeUserData}
+ *     objects.
+ */
+
+/**
+ * A SentinalGenerator is used to create a sentinal element, which is the last
+ * element within a badge element.
+ *
+ * A sentinal element is needed to ensure that the badge elements interact with
+ * the keyboard correctly.  The default SentinalGenerator creates a new
+ * HTMLBRElement.
+ *
+ * @typedef SentinalGenerator
+ * @function
+ * @returns {Node} The child element to be appended to newly created badge
+ *     elements.
+ */
+
+/**
+ * Splits specified source text by comma into {@link BadgeUserData} objects.
+ * The {@link BadgeUserData.location} and {@link BadgeUserData.text} of the
+ * returned objects omit the comma.
+ *
+ * Default {@link Parser} used by {@link BadgeEditable}.
+ *
+ * @example
+ * CommaSeparatedParser("foo, bar")
+ * // => [
+ * //    {
+ * //         text: "foo",
+ * //         location: {
+ * //             start: {offset: 0},
+ * //             end: {offset: 3}
+ * //         }
+ * //    },
+ * //    {
+ * //         text: "bar",
+ * //         location: {
+ * //             start: {offset: 4},
+ * //             end: {offset: 8}
+ * //         }
+ * //    }
+ * // ]
+ * @see Parser
+ * @function CommaSeparatedParser
+ * @param {String} source - text to be parsed
+ * @returns {Array.<BadgeUserData>} An array of data objects.
+ */
+const CommaSeparatedParser = function CommaSeparatedParser(source) {
+    let values = [];
+    let offset = 0;
+    for (let i = source.indexOf(','); i > 0; i = source.indexOf(',')) {
+        values.push({
+            location: {
+                start: {offset},
+                end: {offset: offset + i},
+            },
+            text: source.substring(0, i),
+        });
+
+        source = source.substring(i + 1);
+        offset += i + 1;
+    }
+    values.push({
+        location: {
+            start: {offset},
+            end: {offset: offset + source.length},
+        },
+        text: source,
+    });
+    return values;
+}
+
+/**
+ * Represents the data associated to a badge within the {@link BadgeEditable}
+ * input control.  These values are used internally to keep record the state of
+ * each badge.
+ *
+ * @typedef BadgeData
+ * @property {BadgeUserData} value - the data object emitted by the
+ *     {@link BadgeEditable}'s [parser]{@link Parser}.
+ * @property {String} textContent - the last known text content of the badge's
+ *     element.
+ * @property {String} [rawText] - the input as entered from the keyboard (may be
+ *     different from {@link BadgeData.value.text})
+ * @property {function|Node} [sentinal] - the last DOM element (or
+ *     generator thereof) of the badge's DOM element.
+ * @private
+ */
+
+/**
+ * Receives the user defined data, DOM element and unique key of a badge within
+ * a BadgeEditable control.
+ *
+ * @callback BadgeEditable~BadgeCallback
+ * @param {BadgeUserData} badge - user defined data
+ * @param {Element} node - in the DOM of the badge
+ * @param {Number} key - a unique key (with in the BadgeEditable control) of the
+ *     badge.
+ */
+
+/**
+ * Fires whenever a badge is added, deleted or changed.
+ *
+ * @event BadgeEditable#change
+ * @type {Array.<ChangeEvent>}
+ */
+/**
+ * Event object for [change events]{@link BadgeEditable#change}.
+ *
+ * @typedef ChangeEvent
+ * @property {String} type - one of 'add', 'delete' or 'change'.
+ * @property {Node} node - the badge element.
+ * @property {BadgeUserData} [value] - the user defined badge data object for a
+ *     badge being added or changed.
+ * @property {BadgeUserData} [previousValue] - the user defined badge data
+ *     object for auser defined badge data object for a badge being deleted or
+ *     changed.
+ */
+
+/**
+ * Constructs a new BadgeEditable attached to element.
+ *
+ * @param {HTMLElement} element - The element to which this BadgeEditable is
+ *     attached.  This element (typically a div) will automatically have
+ *     contenteditable attribute turned on (if it isn't already) and attach
+ *     event listeners as needed.
+ * @param {Object} [options]
+ * @param {String} [options.validLabel='primary'] - class name to add to valid
+ *     badges
+ * @param {function} [options.onChange] - called when a badge value changes, is
+ *     added or removed, defaults to a no-op.
+ * @param {Parser} [options.parser.parse=CommaSeparatedParser] - used to
+ *     recognise valid badges
+ * @param {SentinalGenerator} [optional.makeSentinal] - generates a sentinal
+ *     element for new and prospective badge elements, default creates new
+ *     HTMLBRElements.
+ *
+ * @constructor
+ */
 function BadgeEditable(
-    // element is a node in the DOM (typically a div) that will be converted
-    // into contenteditable element and used for the badge input
     element,
     {
-        // validLabel will be used to add a class to badges that are valid,
-        // defaults to 'primary'
         validLabel = 'primary',
-        // onChange will be called when a badge value changes, is added or
-        // removed, defaults to a no-op
-        onChange,
-        // parser is used to recognise valid badges, defaults to splitting on
-        // commas
-        parser = {
-            parse(text) {
-                let values = [];
-                let offset = 0;
-                for (let i = text.indexOf(','); i > 0; i = text.indexOf(',')) {
-                    const trim = text.substring(0, i).trim();
-                    const data = {
-                        location: {
-                            start: {offset},
-                            end: {offset: offset + i},
-                        },
-                    };
-                    if (trim) {
-                        data.text = trim;
-                    }
-                    values.push(data);
-
-                    text = text.substring(i + 1);
-                    offset += i + 1;
-                }
-                const trim = text.trim();
-                const data = {
-                    location: {
-                        start: {offset},
-                        end: {offset: offset + text.length},
-                    },
-                };
-                if (trim) {
-                    data.text = trim;
-                }
-                values.push(data);
-                return values;
-            }
-        },
+        onChange = null,
+        parser = { parse: CommaSeparatedParser },
         makeSentinal = () => document.createElement('br'),
     } = {}) {
-    // activeNode contains the node the user is currently editing
+    /**
+     * Contains the node the user is currently editing.
+     *
+     * @type {Element}
+     * @inner
+     * @private
+     */
     let activeNode = null;
-    // badgeKeySequence contains the last badgeKey that was created
-    // badgeKeys start at 1 (the sequence will be incremented before being used)
+    /**
+     * Contains the last badgeKey that was created.  badgeKeys start at 1 and
+     * are incremented by one.  The current value will be the last badgeKey that
+     * was generated.
+     *
+     * @type {Number}
+     * @inner
+     * @private
+     */
     let badgeKeySequence = 0;
-    // badgeMap contains data for every badge with the following structure:
-    //   {
-    //     value: <any value that was emitted by the parser>,
-    //     textContent: String<last known textContent of the badge node>,
-    //     rawText: String<text passed to the parser>
-    //     sentinal: Function|HtmlElement
-    //   }
+    /**
+     * Contains data for every badge.
+     *
+     * @type {Map.<Number, BadgeData>}
+     * @inner
+     * @private
+     */
     const badgeMap = new Map();
-    // emit will be called when a badge value changes, added or removed
-    let emit = null;
-
-    if (onChange) {
-        emit = onChange;
-    }
+    /**
+     * Called when a badge value changes, added or removed.
+     *
+     * @type {function}
+     * @inner
+     * @private
+     */
+    const emit = onChange;
 
     element.contentEditable = 'true';
 
-    Object.defineProperties(this, {
-        length: {
-            get() {
-                return badgeMap.size;
-            },
-        },
+    /**
+     * Number of badges in this BadgeEditable control.
+     *
+     * @member {Number}
+     */
+    function length() {
+        return badgeMap.size;
+    }
 
-        isActive: {
-            get() {
-                return element.ownerDocument.activeElement === element;
-            },
-        },
+    /**
+     * `true` when this control is the active element in its document, `false`
+     * otherwise.
+     *
+     * @member {Boolean}
+     */
+    function isActive() {
+        return element.ownerDocument.activeElement === element;
+    }
 
-        forEach: {
-            value(callback) {
-                for (let i = 0; i < element.childElementCount; i++) {
-                    const child = element.children[i];
-                    const badgeKey = child.dataset.badgeKey;
-                    if (badgeMap.has(badgeKey)) {
-                        callback(badgeMap.get(badgeKey).value, child, badgeKey);
-                    }
-                }
+    /**
+     * Calls the specified callback for each badge in this control.
+     *
+     * @param {BadgeEditable~BadgeCallback} callback - called for each badge
+     */
+    function forEach(callback) {
+        for (let i = 0; i < element.childElementCount; i++) {
+            const child = element.children[i];
+            const badgeKey = Number(child.dataset.badgeKey);
+            if (badgeMap.has(badgeKey)) {
+                callback(badgeMap.get(badgeKey).value, child, badgeKey);
             }
-        },
+        }
+    }
 
+    /**
+     * The user defined data objects for each badge in this control.
+     *
+     * @member {Array.<BadgeUserData>}
+     * @fires BadgeEditable#change
+     */
+    function value() {
+        const data = [];
+        this.forEach((badge, node, key) => {
+            data.push(Object.assign({key}, badge));
+        });
+        return data;
+    }
+    function valueSetter(value) {
+        const changes = [];
+        this.forEach((previousValue, node) => {
+            changes.push({type: 'delete', node, previousValue});
+            element.removeChild(node);
+        });
+        badgeMap.clear();
+        for (const node of element.querySelectorAll('.badge-empty')) {
+            element.removeChild(node);
+        }
+        value.forEach(value => {
+            const textContent = 'text' in value ? value.text : value.toString();
+            const node = makeChild(textContent)
+            const badgeKey = Number(node.dataset.badgeKey);
+            const data = {value, textContent};
+            node.classList.remove('badge-invalid');
+            node.classList.add(`badge-${validLabel}`);
+            element.appendChild(node);
+            badgeMap.set(badgeKey, data);
+            enableBadge(node, data);
+            changes.push({type: 'add', node, value});
+        });
+        if (emit) emit(changes);
+    }
+
+    /**
+     * The text content of this BadgeEditable control.
+     *
+     * This is a writable property and will initiate this BadgeEditable's
+     * [parser]{@link Parser}.
+     *
+     * @member {String}
+     */
+    function textContent() {
+        let textContent = '';
+        this.forEach(badge => {
+            textContent += 'rawText' in badge
+                ? badge.rawText : badge.textContent;
+        });
+        return textContent;
+    }
+    function textContentSetter(textContent) {
+        const allItems = parser.parse(textContent);
+        const items = allItems.filter(d => d !== undefined);
+        this.value = items;
+    }
+
+    Object.defineProperties(this, {
+        length: {get: length},
+        isActive: {get: isActive},
+        forEach: {value: forEach},
         value: {
-            get() {
-                const data = [];
-                this.forEach((badge, node, key) => {
-                    data.push(Object.assign({key}, badge));
-                });
-                return data;
-            },
-
-            set(value) {
-                const changes = [];
-                this.forEach((previousValue, node) => {
-                    changes.push({type: 'delete', node, previousValue});
-                    element.removeChild(node);
-                });
-                badgeMap.clear();
-                for (const node of element.querySelectorAll('.badge-empty')) {
-                    element.removeChild(node);
-                }
-                value.forEach(value => {
-                    const textContent = 'text' in value ? value.text : value.toString();
-                    const node = makeChild(textContent)
-                    const badgeKey = node.dataset.badgeKey;
-                    const data = {value, textContent};
-                    node.classList.remove('badge-invalid');
-                    node.classList.add(`badge-${validLabel}`);
-                    element.appendChild(node);
-                    badgeMap.set(badgeKey, data);
-                    enableBadge(node, data);
-                    changes.push({type: 'add', node, value});
-                });
-                if (emit) emit(changes);
-            },
+            get: value,
+            set: valueSetter
         },
-
         textContent: {
-            set(textContent) {
-                const allItems = parser.parse(textContent);
-                const items = allItems.filter((d, i) => d !== undefined);
-                this.value = items;
-            },
+            get: textContent,
+            set: textContentSetter
         },
     });
 
+    /**
+     * Manufactures a new DOM element for a badge.  This is called when
+     * inserting a badge or when a new insertion point is required in the
+     * control.
+     *
+     * To ensure that the DOM element interacts with the keyboard correctly the
+     * last element inside the returned element is a HTMLBRElement.
+     *
+     * @returns {HTMLElement} Element of the badge.
+     * @param {String} [content=null] - the text content of an existing badge,
+     *     otherwise the returned node will be ready for user input
+     * @inner
+     * @private
+     */
     function makeChild(content=null) {
         const child = document.createElement('span');
         child.dataset.badgeKey = String(++badgeKeySequence);
@@ -175,6 +371,20 @@ function BadgeEditable(
         return child;
     }
 
+    /**
+     * To ensure that the DOM element interacts with the keyboard correctly this
+     * function appends a sentinal element to the specified node.  If the
+     * specified data object has a sentinal element then that is used.  If the
+     * sentinal on the data object is a SentinalGenerator then it is used to
+     * generate a node.  Regardless of how the sentinal is obtained, it is
+     * assigned to the specified data object.
+     *
+     * @param {Node} node - the node to which the sentinal is to be appended
+     * @param {BadgeData} data - the data of the badge
+     * @returns {Node} The appended sentinal node.
+     * @inner
+     * @private
+     */
     function addSentinal(node, data) {
         const value = data.value;
         const sentinal = value.sentinal
@@ -185,6 +395,13 @@ function BadgeEditable(
         return sentinal;
     }
 
+    /**
+     * Updates a badge's DOM element and data.
+     *
+     * @param {Node} node - of the badge
+     * @param {BadgeData} data object of the badge
+     * @fires BadgeEditable#change
+     */
     function updateBadge(node, data=undefined) {
         const badgeKey = Number(node.dataset.badgeKey);
         if (data !== undefined) {
@@ -296,12 +513,14 @@ function BadgeEditable(
         const lastChild = node.lastElementChild;
         if (!lastChild) {
             if (!data) {
-                data = badgeMap.has(badgeKey) ? badgeMap.get(badgeKey) : {value:{}};
+                data = badgeMap.has(badgeKey)
+                    ? badgeMap.get(badgeKey) : {value:{}, textContent: ''};
             }
             addSentinal(node, data);
         } else if(data || badgeMap.has(badgeKey)) {
             if (!data) {
-                data = badgeMap.has(badgeKey) ? badgeMap.get(badgeKey) : {value:{}};
+                data = badgeMap.has(badgeKey)
+                    ? badgeMap.get(badgeKey) : {value:{}, textContent: ''};
             }
             if (data.sentinal !== data.value.sentinal) {
                 node.removeChild(lastChild);

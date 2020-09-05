@@ -1,0 +1,10 @@
+{
+    "opts": {
+        "recurse": true,
+        "destination": "dist/docs"
+    },
+    "source": {
+        "includePattern": ".+\\.m?js(doc|x)?$"
+    },
+    "plugins": ["plugins/markdown"]
+}
