@@ -65,6 +65,7 @@ function BadgeEditable(
                 return values;
             }
         },
+        makeSentinal = () => document.createElement('br'),
     } = {}) {
     // activeNode contains the node the user is currently editing
     let activeNode = null;
@@ -169,16 +170,19 @@ function BadgeEditable(
         } else {
             child.classList.add('badge-empty');
         }
-        content = document.createElement('br');
+        content = makeSentinal();
         child.appendChild(content);
         return child;
     }
 
     function addSentinal(node, data) {
         const value = data.value;
-        const sentinal = value.sentinal ? typeof value.sentinal === 'function' ? value.sentinal() : value.sentinal : document.createElement('br');
+        const sentinal = value.sentinal
+            ? typeof value.sentinal === 'function'
+            ? value.sentinal() : value.sentinal : makeSentinal();
         node.appendChild(sentinal);
         data.sentinal = sentinal;
+        return sentinal;
     }
 
     function updateBadge(node, data=undefined) {
