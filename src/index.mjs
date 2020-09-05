@@ -159,7 +159,7 @@ function BadgeEditable(
 
     function makeChild(content=null) {
         const child = document.createElement('span');
-        child.dataset.badgeKey = ++badgeKeySequence;
+        child.dataset.badgeKey = String(++badgeKeySequence);
         child.classList.add('badge');
         if (content) {
             if ('string' === typeof content) {
@@ -182,7 +182,7 @@ function BadgeEditable(
     }
 
     function updateBadge(node, data=undefined) {
-        const badgeKey = node.dataset.badgeKey;
+        const badgeKey = Number(node.dataset.badgeKey);
         if (data !== undefined) {
             const e = {
                 type: 'add',
@@ -241,7 +241,7 @@ function BadgeEditable(
 
     function validateBadge(node, data=undefined) {
         if (data === undefined) {
-            const badgeKey = node.dataset.badgeKey;
+            const badgeKey = Number(node.dataset.badgeKey);
             if (badgeMap.has(badgeKey)) {
                 data = badgeMap.get(badgeKey);
             }
@@ -288,7 +288,7 @@ function BadgeEditable(
         } else {
             after = node.nextElementSibling;
         }
-        const badgeKey = node.dataset.badgeKey;
+        const badgeKey = Number(node.dataset.badgeKey);
         const lastChild = node.lastElementChild;
         if (!lastChild) {
             if (!data) {
